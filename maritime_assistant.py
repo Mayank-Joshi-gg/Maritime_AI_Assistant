@@ -1,78 +1,84 @@
 import streamlit as st
 import requests
-from openai import OpenAI
 
-# ✅ Get keys securely from Streamlit Cloud secrets
-OPENAI_KEY = st.secrets["OPENAI_KEY"]
-WEATHER_KEY = st.secrets["WEATHER_KEY"]
+# Load keys from Streamlit secrets
+HF_API_KEY = st.secrets["HF_API_KEY"]   # Hugging Face token
+WEATHER_KEY = st.secrets["WEATHER_KEY"] # OpenWeather API key
 
-# Set up OpenAI client
-client = OpenAI(api_key=OPENAI_KEY)
+# Hugging Face model (you can try others like "gpt2", "distilgpt2", "google/flan-t5-small")
+HF_MODEL = "google/flan-t5-small"
 
-# Streamlit page setup
-st.set_page_config(page_title="Maritime Assistant", page_icon="⚓")
-st.title("⚓ Maritime Virtual Assistant")
-st.write("Welcome aboard! Ask maritime questions or check live sea weather.")
 
-# 🌦 Function to get weather data
-def get_weather(city_name):
-    geo_url = f"http://api.openweathermap.org/geo/1.0/direct?q={city_name}&limit=1&appid={WEATHER_KEY}"
-    geo_data = requests.get(geo_url).json()
-
-    if not geo_data:
-        return "⚠️ City not found. Please check the spelling."
-
-    lat = geo_data[0]["lat"]
-    lon = geo_data[0]["lon"]
-
-    weather_url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={WEATHER_KEY}&units=metric"
-    weather_data = requests.get(weather_url).json()
-
-    try:
-        description = weather_data["weather"][0]["description"].capitalize()
-        temperature = weather_data["main"]["temp"]
-        wind_speed = weather_data["wind"]["speed"]
-
-        return (
-            f"📍 Location: {city_name}\n"
-            f"🌤 Weather: {description}\n"
-            f"🌡 Temperature: {temperature} °C\n"
-            f"💨 Wind Speed: {wind_speed} m/s"
-        )
-    except KeyError:
-        return "⚠️ Unable to fetch weather data. Try again later."
-
-# 🧭 Function to ask maritime questions using GPT
+# ------------------ Hugging Face Q&A ------------------ #
 def ask_maritime_question(question):
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a helpful maritime assistant."},
-                {"role": "user", "content": question}
-            ]
+        headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+        payload = {"inputs": question}
+
+        response = requests.post(
+            f"https://api-inference.huggingface.co/models/{HF_MODEL}",
+            headers=headers,
+            json=payload
         )
-        return response.choices[0].message.content
-    except Exception:
-        return "⚠️ AI response failed. Please check your API key or quota."
 
-# 🖥️ User Interface
-mode = st.radio("Choose what you want to do:", ["Ask a Maritime Question", "Check Sea Weather"])
+        data = response.json()
 
-if mode == "Ask a Maritime Question":
-    user_question = st.text_input("Type your maritime question:")
+        # Handle possible return formats
+        if isinstance(data, list) and "generated_text" in data[0]:
+            return data[0]["generated_text"]
+        elif "generated_text" in data:
+            return data["generated_text"]
+        elif "error" in data:
+            return f"⚠️ HuggingFace error: {data['error']}"
+        else:
+            return str(data)
+    except Exception as e:
+        return f"⚠️ Error: {str(e)}"
+
+
+# ------------------ Weather Info ------------------ #
+def get_weather(city):
+    try:
+        url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={WEATHER_KEY}&units=metric"
+        response = requests.get(url)
+        data = response.json()
+
+        if data.get("cod") != 200:
+            return f"⚠️ Error: {data.get('message', 'City not found')}"
+        
+        temp = data["main"]["temp"]
+        condition = data["weather"][0]["description"]
+        return f"🌡️ {temp}°C, {condition}"
+    except Exception as e:
+        return f"⚠️ Weather error: {str(e)}"
+
+
+# ------------------ Streamlit UI ------------------ #
+st.title("⚓ Maritime AI Assistant (Free Hugging Face Version)")
+
+menu = st.sidebar.radio("Choose Option", ["Maritime Q&A", "Weather Info"])
+
+if menu == "Maritime Q&A":
+    st.subheader("Ask a Maritime Question")
+    question = st.text_input("Enter your question here:")
     if st.button("Ask"):
-        if user_question.strip():
-            answer = ask_maritime_question(user_question)
-            st.success(answer)
+        if question.strip():
+            with st.spinner("Thinking..."):
+                answer = ask_maritime_question(question)
+            st.success("Answer:")
+            st.write(answer)
         else:
             st.warning("Please enter a question.")
 
-elif mode == "Check Sea Weather":
-    city_input = st.text_input("Enter a port or city name:")
+elif menu == "Weather Info":
+    st.subheader("Check Weather at Port/City")
+    city = st.text_input("Enter city name:")
     if st.button("Get Weather"):
-        if city_input.strip():
-            weather_info = get_weather(city_input)
-            st.info(weather_info)
+        if city.strip():
+            with st.spinner("Fetching weather..."):
+                weather = get_weather(city)
+            st.success("Weather:")
+            st.write(weather)
         else:
             st.warning("Please enter a city name.")
+
