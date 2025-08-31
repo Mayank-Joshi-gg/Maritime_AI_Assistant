@@ -3,6 +3,7 @@ import requests
 import mysql.connector
 from openai import OpenAI
 import math
+import pyttsx3
 
 # -----------------------
 # 🔑 Secrets & API Keys
@@ -22,7 +23,7 @@ st.set_page_config(page_title="Maritime Assistant", page_icon="⚓", layout="wid
 # Avatar Display
 # ----------------
 st.markdown("<div style='text-align: center;'>", unsafe_allow_html=True)
-avatar_url = "https://cdn-icons-png.flaticon.com/512/4140/4140044.png" 
+avatar_url = "https://cdn-icons-png.flaticon.com/512/4140/4140044.png"  # Example nautical captain avatar
 st.image(avatar_url, width=150)
 st.markdown("</div>", unsafe_allow_html=True)
 
@@ -207,3 +208,9 @@ elif mode == "Estimate Voyage":
                 )
         else:
             st.warning("Please enter both source and destination ports.")
+engine=pyttsx3.init()
+engine.say('''Welcome to maritime assistant
+              This is a virtual assistant for maritime queries
+              You can ask about weather, vessel info, voyage estimation and general maritime questions
+           ''')
+engine.runAndWait()
