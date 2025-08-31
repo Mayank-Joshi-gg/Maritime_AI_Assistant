@@ -3,7 +3,7 @@ import requests
 import mysql.connector
 from openai import OpenAI
 import math
-import pyttsx3
+from gtts import gTTS
 
 # -----------------------
 # 🔑 Secrets & API Keys
@@ -208,9 +208,12 @@ elif mode == "Estimate Voyage":
                 )
         else:
             st.warning("Please enter both source and destination ports.")
-engine=pyttsx3.init()
-engine.say('''Welcome to maritime assistant
-              This is a virtual assistant for maritime queries
-              You can ask about weather, vessel info, voyage estimation and general maritime questions
-           ''')
-engine.runAndWait()
+welcome_text = """Welcome to Maritime Assistant.
+This is a virtual assistant for maritime queries.
+You can ask about weather, vessel info, voyage estimation and general maritime questions.
+"""
+
+tts = gTTS(text=welcome_text, lang='en')
+tts.save("welcome.mp3")
+
+st.audio("welcome.mp3", format="audio/mp3")
